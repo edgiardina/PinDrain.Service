@@ -1,0 +1,13 @@
+html,body{margin:0;padding:0;background:transparent;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+#wrap{width:800px;height:180px;display:flex;flex-direction:column;justify-content:center;gap:10px;color:#fff}
+#title{font-weight:700;letter-spacing:.5px;text-shadow:0 2px 6px rgba(0,0,0,.5)}
+#bars{display:flex;gap:12px}
+.lane{flex:1}
+.label{font-size:14px;opacity:.8}
+.bar{height:18px;background:rgba(255,255,255,.15);border-radius:9px;overflow:hidden}
+.bar span{display:block;height:100%}
+#barL{width:0%}
+#barC{width:0%}
+#barR{width:0%}
+.val{font-size:12px;margin-top:4px;opacity:.9}
+#ticker{font-size:12px;opacity:.85;height:18px}
