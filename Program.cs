@@ -10,6 +10,7 @@ builder.WebHost.UseUrls("http://localhost:5173");
 
 builder.Services.AddSingleton<EventHub>();
 builder.Services.AddSingleton<StatsService>();
+builder.Services.AddSingleton<ProfileStore>();
 builder.Services.AddHostedService<VideoProcessor>();
 
 var app = builder.Build();
@@ -22,6 +23,12 @@ app.UseDefaultFiles(new DefaultFilesOptions {
 app.UseStaticFiles(new StaticFileOptions {
     FileProvider = new PhysicalFileProvider(overlayPath),
     RequestPath = "/overlay"
+});
+
+// friendly route without .html extension
+app.MapGet("/overlay/calibrate", async ctx => {
+    ctx.Response.ContentType = "text/html";
+    await ctx.Response.SendFileAsync(Path.Combine(overlayPath, "calibrate.html"));
 });
 
 app.UseWebSockets();
@@ -62,5 +69,11 @@ app.MapPost("/api/override", async (OverrideRequest req, EventHub hub, StatsServ
 
 app.MapGet("/api/stats", async (StatsService stats) => Results.Json(await stats.GetSessionStatsAsync()));
 app.MapPost("/api/session/reset", async (StatsService stats) => { await stats.ResetAsync(); return Results.Ok(); });
+
+// Profiles API
+app.MapGet("/api/profiles", async (ProfileStore store) => Results.Json(await store.ListAsync()));
+app.MapPost("/api/profiles/camera", async (CameraProfile req, ProfileStore store) => { await store.SaveCameraAsync(req); return Results.Ok(); });
+app.MapPost("/api/profiles/game", async (GameProfile req, ProfileStore store) => { await store.SaveGameAsync(req); return Results.Ok(); });
+app.MapPost("/api/profiles/activate", async (ActiveProfile req, ProfileStore store) => { await store.ActivateAsync(req); return Results.Ok(); });
 
 await app.RunAsync();
