@@ -11,7 +11,8 @@ builder.WebHost.UseUrls("http://localhost:5173");
 builder.Services.AddSingleton<EventHub>();
 builder.Services.AddSingleton<StatsService>();
 builder.Services.AddSingleton<ProfileStore>();
-builder.Services.AddHostedService<VideoProcessor>();
+// Use the heuristic VideoProcessor in Services (new implementation)
+builder.Services.AddHostedService<PinDrain.Service.Services.VideoProcessor>();
 
 var app = builder.Build();
 
@@ -71,9 +72,9 @@ app.MapGet("/api/stats", async (StatsService stats) => Results.Json(await stats.
 app.MapPost("/api/session/reset", async (StatsService stats) => { await stats.ResetAsync(); return Results.Ok(); });
 
 // Profiles API
-app.MapGet("/api/profiles", async (ProfileStore store) => Results.Json(await store.ListAsync()));
-app.MapPost("/api/profiles/camera", async (CameraProfile req, ProfileStore store) => { await store.SaveCameraAsync(req); return Results.Ok(); });
-app.MapPost("/api/profiles/game", async (GameProfile req, ProfileStore store) => { await store.SaveGameAsync(req); return Results.Ok(); });
-app.MapPost("/api/profiles/activate", async (ActiveProfile req, ProfileStore store) => { await store.ActivateAsync(req); return Results.Ok(); });
+app.MapGet("/api/profiles", (ProfileStore s) => Results.Json(s.List()));
+app.MapPost("/api/profiles/camera", (ProfileStore s, CameraProfile p) => { s.SaveCamera(p); return Results.Ok(); });
+app.MapPost("/api/profiles/game",   (ProfileStore s, GameProfile p)   => { s.SaveGame(p); return Results.Ok(); });
+app.MapPost("/api/profiles/activate", (ProfileStore s, ActivateRequest r) => { s.Activate(r); return Results.Ok(); });
 
 await app.RunAsync();

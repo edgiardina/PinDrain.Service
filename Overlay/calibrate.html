@@ -4,31 +4,93 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>PinDrain Calibrate</title>
-  <!-- Intentionally do NOT include styles.css to avoid overlay styles clobbering this page -->
   <style>
-    html,body { height:100%; margin:0; background:#111; color:#eee; font-family: system-ui, sans-serif; }
-    #calWrap { max-width: 1100px; margin: 0 auto; padding: 12px; }
-    #toolbar { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
-    #canvasWrap { position:relative; }
-    canvas { width:100%; height:auto; background:#000; border:1px solid #333; }
-    .hint { opacity:.8; font-size:.9em; }
-    button { background:#1e88e5; color:white; border:0; padding:8px 12px; border-radius:6px; cursor:pointer; }
-    input,select { padding:6px 8px; border-radius:6px; border:1px solid #444; background:#222; color:#eee; }
+    :root { --bg:#111; --fg:#eee; --accent:#1e88e5; --muted:#263238; --border:#3a3a3a; }
+    html,body { height:100%; margin:0; background:var(--bg); color:var(--fg); font-family: system-ui, sans-serif; }
+
+    /* Tabs */
+    #tabs { position:sticky; top:0; z-index:5; display:flex; gap:8px; padding:10px 12px; background:rgba(17,17,17,.95); backdrop-filter: blur(4px); border-bottom:1px solid var(--border); }
+    #tabs button { background:var(--muted); color:var(--fg); border:1px solid var(--border); border-radius:6px; padding:6px 10px; cursor:pointer; }
+    #tabs button.active { background:var(--accent); border-color:var(--accent); }
+
+    /* Shared toolbar styles */
+    .toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:10px 12px; }
+    .toolbar label { display:flex; gap:6px; align-items:center; }
+    .toolbar input, .toolbar select { padding:6px 8px; border-radius:6px; border:1px solid #444; background:#222; color:var(--fg); }
+    .toolbar button { background:var(--accent); color:white; border:0; padding:8px 12px; border-radius:6px; cursor:pointer; }
+
+    /* Camera quad pane */
+    #paneQuad { display:block; }
+    #stage { position: relative; display:inline-block; margin: 0 12px 12px; }
+    #feed, #cal { position:absolute; top:0; left:0; }
+    #feed { background:#000; }
+
+    /* ROI pane */
+    #roiPane { display:none; }
+    #roiToolbar { position:sticky; top:48px; z-index:4; display:flex; gap:8px; align-items:center; padding:10px 12px; background:rgba(17,17,17,.95); border-bottom:1px solid var(--border); }
+    #roiWrap { height: calc(100vh - 140px); overflow:auto; padding:12px; }
+    #roiCanvas { width: 400px; height: 800px; background:#000; border:1px solid #333; image-rendering: crisp-edges; image-rendering: pixelated; display:block; }
+    #roiMsg { margin-left:8px; opacity:.85; }
+    #screenHint { color:#b0bec5; font-size:.9em; }
   </style>
 </head>
 <body>
-  <div id="calWrap">
-    <h2>Calibration</h2>
-    <div id="toolbar">
-      <label>Camera Name <input id="camName" placeholder="e.g. obs-cam1"/></label>
+
+  <div id="tabs">
+    <button id="tabQuad" class="active">Camera Quad</button>
+    <button id="tabRoi">ROIs</button>
+  </div>
+
+  <div id="paneQuad">
+    <div id="toolbar" class="toolbar">
+      <label>Mode
+        <select id="mode">
+          <option value="camera">Camera</option>
+          <option value="screen">Screen/Window</option>
+          <option value="none">None</option>
+        </select>
+      </label>
+
+      <label id="camWrap">Device
+        <select id="device"></select>
+      </label>
+
+      <button id="pickBtn" hidden>Pick Window/Tab</button>
+      <span id="screenHint" hidden>Browser will show a picker to select a screen/window/tab.</span>
+
+      <input id="camId"   placeholder="Camera ID"  value="scene-1">
+      <input id="camName" placeholder="Name"       value="DeskCam">
+      <label><input type="checkbox" id="lockRect"> Keep rectangle</label>
       <button id="saveBtn">Save Camera Quad</button>
-      <span id="status" class="hint"></span>
+      <span id="msg"></span>
     </div>
-    <div class="hint">Drag the 4 points to outline the playfield (top-left, top-right, bottom-right, bottom-left)</div>
-    <div id="canvasWrap">
-      <canvas id="calCanvas" width="1280" height="720"></canvas>
+
+    <div id="stage">
+      <video id="feed" autoplay playsinline muted></video>
+      <canvas id="cal"></canvas>
     </div>
   </div>
+
+  <div id="roiPane">
+    <div id="roiToolbar" class="toolbar">
+      <button id="snapBtn">Warp Snapshot</button>
+      <select id="roiSelect">
+        <option value="leftOutlane">Left Outlane</option>
+        <option value="centerDrain">Center Drain</option>
+        <option value="rightOutlane">Right Outlane</option>
+      </select>
+      <button id="roiClear">Clear</button>
+      <input id="gameId" value="generic-pin" title="Game Id">
+      <input id="gameName" value="Generic Pin" title="Game Name">
+      <button id="saveGame">Save Game ROI</button>
+      <button id="activate">Activate</button>
+      <span id="roiMsg"></span>
+    </div>
+    <div id="roiWrap">
+      <canvas id="roiCanvas" width="1000" height="2000"></canvas>
+    </div>
+  </div>
+
   <script src="calibrate.js"></script>
 </body>
 </html>

@@ -3,22 +3,16 @@ using System.Text.Json.Serialization;
 
 namespace PinDrain.Service.Models;
 
-public record CameraProfile(
-    string id,
-    string name,
-    double[][] quad
-);
+public record Size(int Width, int Height);
+public record PointF(float X, float Y);
 
-public record GameProfile(
-    string id,
-    string name,
-    CanonicalSize canonical,
-    Dictionary<string, double[][]> rois
-);
+// Quad points are TL, TR, BR, BL in scene space (clockwise).
+public record CameraProfile(string Id, string Name, Size Canonical, PointF[] Quad);
 
-public record CanonicalSize(int width, int height);
+// ROIs are polygons in canonical space: [[x,y], ...].
+public record GameProfile(string Id, string Name, Size Canonical, Dictionary<string, float[][]> Rois);
 
-public record ActiveProfile(string cameraId, string gameId);
+public record ActivateRequest(string CameraId, string GameId);
 
 public static class JsonDefaults
 {
