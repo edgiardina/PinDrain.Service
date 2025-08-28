@@ -18,10 +18,25 @@ window.addEventListener('DOMContentLoaded', () => {
   const stage    = document.getElementById('stage');
   const screenHint = document.getElementById('screenHint');
 
-  if (!mode || !device || !pickBtn || !saveBtn || !feed || !canvas || !ctx || !camId || !camName || !lockRect || !stage) {
+  // Server video settings controls
+  const vidModeSel  = document.getElementById('vidModeSel');
+  const vidDeviceId = document.getElementById('vidDeviceId');
+  const vidFilePath = document.getElementById('vidFilePath');
+  const vidStreamUrl= document.getElementById('vidStreamUrl');
+  const vidDevWrap  = document.getElementById('vidDevWrap');
+  const vidFileWrap = document.getElementById('vidFileWrap');
+  const vidUrlWrap  = document.getElementById('vidUrlWrap');
+  const vidSave     = document.getElementById('vidSave');
+  const vidMsg      = document.getElementById('vidMsg');
+
+  if (!mode || !device || !pickBtn || !saveBtn || !feed || !canvas || !ctx || !camId || !camName || !lockRect || !stage || !vidModeSel || !vidDeviceId || !vidSave) {
     console.error('Calibration DOM not ready. Missing one or more elements.');
     return;
   }
+
+  // ensure canvas receives pointer events above the video
+  feed.style.pointerEvents = 'none';
+  canvas.style.pointerEvents = 'auto';
 
   let stream = null;
   let rafId  = 0;
@@ -70,24 +85,55 @@ window.addEventListener('DOMContentLoaded', () => {
   canvas.addEventListener('pointerup', ()=>{ dragging=-1; draggingPoly=false; });
   canvas.addEventListener('pointerleave', ()=>{ dragging=-1; draggingPoly=false; });
 
+  // --- Server video settings UI ---
+  function updateVidInputs() {
+    const m = vidModeSel.value;
+    vidDevWrap.hidden = (m !== 'device');
+    vidFileWrap.hidden = (m !== 'file');
+    vidUrlWrap.hidden = (m !== 'url');
+  }
+  vidModeSel.onchange = updateVidInputs;
+
+  async function loadVideoSettings(){
+    try{
+      const res = await fetch('/api/settings/video');
+      if(!res.ok) return;
+      const v = await res.json();
+      vidModeSel.value = v.mode || 'device';
+      vidDeviceId.value = v.deviceId ?? 0;
+      vidFilePath.value = v.filePath || '';
+      vidStreamUrl.value = v.streamUrl || '';
+      updateVidInputs();
+    } catch {}
+  }
+  vidSave.onclick = async ()=>{
+    const body = {
+      mode: vidModeSel.value,
+      deviceId: vidModeSel.value==='device' ? Number(vidDeviceId.value) : null,
+      filePath: vidModeSel.value==='file' ? vidFilePath.value : null,
+      streamUrl: vidModeSel.value==='url' ? vidStreamUrl.value : null,
+      width: null, height: null, fps: null, flipH:false, flipV:false, rotate:0
+    };
+    const res = await fetch('/api/settings/video',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    vidMsg.textContent = res.ok ? 'Saved ? (restart app)' : 'Save failed';
+    setTimeout(()=>vidMsg.textContent='', 3000);
+  };
+
+  // Local preview helpers
   async function listCameras(){ try{ const devs=await navigator.mediaDevices.enumerateDevices(); const cams=devs.filter(d=>d.kind==='videoinput'); device.innerHTML=''; cams.forEach((c,i)=>{ const opt=document.createElement('option'); opt.value=c.deviceId; opt.textContent=c.label||`Camera ${i+1}`; device.appendChild(opt); }); const obs=[...device.options].find(o=>/obs|virtual/i.test(o.textContent)); if(obs) device.value=obs.value; } catch{} }
   async function startCamera(deviceId){ stopStream(); const constraints=deviceId?{deviceId:{exact:deviceId}}:true; stream=await navigator.mediaDevices.getUserMedia({video:constraints,audio:false}); await attachStream(stream); }
   async function startScreen(){ stopStream(); try{ stream=await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: 'browser' } , audio:false }); } catch { return; } await attachStream(stream); }
-  async function attachStream(s){ feed.srcObject=s; await feed.play().catch(()=>{}); await new Promise(res=>{ if(feed.videoWidth&&feed.videoHeight) return res(); feed.onloadedmetadata=()=>res(); setTimeout(res,500); }); const w=feed.videoWidth||1280, h=feed.videoHeight||720, oldW=canvas.width||1280, oldH=canvas.height||720; canvas.width=w; canvas.height=h; feed.width=w; feed.height=h; stage.style.width=w+'px'; stage.style.height=h+'px'; if(quad && !lockRect.checked && (oldW!==w||oldH!==h)){ const sx=w/oldW, sy=h/oldH; quad=quad.map(p=>({x:p.x*sx,y:p.y*sy})); } ensureInitialQuad(); const margin=handleR; quad=quad.map(p=>({ x:clamp(p.x,margin,canvas.width-margin), y:clamp(p.y,margin,canvas.height-margin) })); cancelAnimationFrame(rafId); const tick=()=>{ drawOverlay(); rafId=requestAnimationFrame(tick); }; rafId=requestAnimationFrame(tick); }
+  async function attachStream(s){ feed.srcObject=s; await feed.play().catch(()=>{}); await new Promise(res=>{ if(feed.videoWidth&&feed.videoHeight) return res(); feed.onloadedmetadata=()=>res(); setTimeout(res,500); }); const w=feed.videoWidth||1280, h=feed.videoHeight||720; const oldW=canvas.width||1280, oldH=canvas.height||720; canvas.width=w; canvas.height=h; feed.width=w; feed.height=h; stage.style.width=w+'px'; stage.style.height=h+'px'; if(quad && !lockRect.checked && (oldW!==w||oldH!==h)){ const sx=w/oldW, sy=h/oldH; quad=quad.map(p=>({x:p.x*sx,y:p.y*sy})); } ensureInitialQuad(); const margin=handleR; quad=quad.map(p=>({ x:clamp(p.x,margin,canvas.width-margin), y:clamp(p.y,margin,canvas.height-margin) })); cancelAnimationFrame(rafId); const tick=()=>{ drawOverlay(); rafId=requestAnimationFrame(tick); }; rafId=requestAnimationFrame(tick); }
   function stopStream(){ if(stream) stream.getTracks().forEach(t=>t.stop()); stream=null; }
   mode.onchange=async()=>{ const m=mode.value; camWrap.hidden=(m!=='camera'); pickBtn.hidden=(m!=='screen'); if (screenHint) screenHint.hidden = (m!=='screen'); if(m==='camera'){ await listCameras(); if(device.value) await startCamera(device.value); } else if(m==='screen'){ /* wait for user click due to browser gesture requirement */ } else { stopStream(); } };
   device.onchange=async()=>{ if(mode.value==='camera') await startCamera(device.value); };
   pickBtn.onclick=async()=>{ if(mode.value==='screen') await startScreen(); };
+
+  // Save camera quad
   saveBtn.onclick=async()=>{
-    const body={
-      id:camId.value.trim()||'scene-1',
-      name:camName.value.trim()||'DeskCam',
-      canonical:{width:1000,height:2000},
-      quad:quad.map(p=>({x:Math.round(p.x),y:Math.round(p.y)}))
-    };
+    const body={ id:camId.value.trim()||'scene-1', name:camName.value.trim()||'DeskCam', canonical:{width:1000,height:2000}, quad:quad.map(p=>({x:Math.round(p.x),y:Math.round(p.y)})) };
     const res=await fetch('/api/profiles/camera',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    msg.textContent=res.ok?'Saved ?':'Save failed';
-    setTimeout(()=>msg.textContent='',2000);
+    msg.textContent=res.ok?'Saved ?':'Save failed'; setTimeout(()=>msg.textContent='',2000);
   };
 
   // ============== Tabs + ROI Editor ==============
@@ -130,5 +176,5 @@ window.addEventListener('DOMContentLoaded', () => {
   roiCanvas.width=CAN.width; roiCanvas.height=CAN.height; drawRois();
 
   // kick off
-  (async function init(){ await listCameras().catch(()=>{}); mode.value='camera'; mode.onchange(); drawOverlay(); })();
+  (async function init(){ await loadVideoSettings(); await listCameras().catch(()=>{}); mode.value='camera'; mode.onchange(); drawOverlay(); })();
 });

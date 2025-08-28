@@ -24,6 +24,9 @@
     #roiCanvas { width: 400px; height: 800px; background:#000; border:1px solid #333; image-rendering: crisp-edges; image-rendering: pixelated; display:block; }
     #roiMsg { margin-left:8px; opacity:.85; }
     #screenHint { color:#b0bec5; font-size:.9em; }
+    #serverSrc { border-top:1px solid var(--border); margin: 0 12px; padding:10px 0; }
+    #serverSrc .group { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:0 0 8px; }
+    #serverSrc small { opacity:.8; }
   </style>
 </head>
 <body>
@@ -55,6 +58,28 @@
       <label><input type="checkbox" id="lockRect"> Keep rectangle</label>
       <button id="saveBtn">Save Camera Quad</button>
       <span id="msg"></span>
+    </div>
+
+    <div id="serverSrc">
+      <div class="group">
+        <strong>Detector Source</strong>
+        <small>(server)</small>
+        <label>Mode
+          <select id="vidModeSel">
+            <option value="device">Device</option>
+            <option value="file">File</option>
+            <option value="url">URL</option>
+          </select>
+        </label>
+        <label id="vidDevWrap">Device Id <input id="vidDeviceId" type="number" min="0" step="1" style="width:90px"/></label>
+        <label id="vidFileWrap" hidden>File Path <input id="vidFilePath" style="width:360px" placeholder="C:\\clips\\pinball.mp4"/></label>
+        <label id="vidUrlWrap" hidden>Stream URL <input id="vidStreamUrl" style="width:360px" placeholder="rtsp://... or http(s)://..."/></label>
+        <button id="vidSave">Save Video Settings</button>
+        <span id="vidMsg"></span>
+      </div>
+      <div class="group">
+        <small>Note: After saving, restart the app for the detector to pick up the new source.</small>
+      </div>
     </div>
 
     <div id="stage">

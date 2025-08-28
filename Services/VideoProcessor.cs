@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using PinDrain.Service.Cv;
 using PinDrain.Service.Models;
+using System.Diagnostics;
 
 namespace PinDrain.Service.Services;
 
@@ -13,6 +14,7 @@ public sealed class VideoProcessor : BackgroundService
     private readonly ProfileStore _profiles;
     private readonly IServiceProvider _services; // optional SettingsStore
     private readonly ILogger<VideoProcessor> _log;
+    private readonly DebugState _debug;
 
     // Tunables
     private const int FPS_TARGET = 30;
@@ -24,9 +26,9 @@ public sealed class VideoProcessor : BackgroundService
     private readonly int _deviceIndex = 0; // OBS Virtual Cam usually 0/1
     private readonly string? _filePath = null; // e.g., "C:/clips/pinball.mp4" to test
 
-    public VideoProcessor(EventHub hub, StatsService stats, ProfileStore profiles, IServiceProvider services, ILogger<VideoProcessor> log)
+    public VideoProcessor(EventHub hub, StatsService stats, ProfileStore profiles, IServiceProvider services, ILogger<VideoProcessor> log, DebugState debug)
     {
-        _hub = hub; _stats = stats; _profiles = profiles; _services = services; _log = log;
+        _hub = hub; _stats = stats; _profiles = profiles; _services = services; _log = log; _debug = debug;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -47,7 +49,13 @@ public sealed class VideoProcessor : BackgroundService
 
             // Open capture: try SettingsStore if available, else fallback
             using var cap = OpenCaptureOptional();
-            if (cap is null || !cap.IsOpened()) return;
+            if (cap is null || !cap.IsOpened()) { _log.LogWarning("Video source not opened"); return; }
+
+            // Log capture props once
+            var capW = cap.Get(VideoCaptureProperties.FrameWidth);
+            var capH = cap.Get(VideoCaptureProperties.FrameHeight);
+            var capFps = cap.Get(VideoCaptureProperties.Fps);
+            _log.LogInformation("Capture: {W}x{H} @ {FPS:0.##}fps", capW, capH, capFps);
 
             using var bgs = BackgroundSubtractorMOG2.Create(history: 500, varThreshold: 16, detectShadows: false);
             var tracker = new CentroidTracker();
@@ -64,9 +72,14 @@ public sealed class VideoProcessor : BackgroundService
             using var fg = new Mat();
             using var bin = new Mat();
 
+            // per-second diagnostics
+            var sw = Stopwatch.StartNew();
+            int frames = 0, contoursSum = 0, detsSum = 0, tracksSum = 0, drainsSum = 0;
+
             while (!stoppingToken.IsCancellationRequested)
             {
                 if (!cap.Read(frame) || frame.Empty()) { await Task.Delay(delay, stoppingToken); continue; }
+                frames++;
 
                 // warp to canonical
                 Cv2.WarpPerspective(frame, canon, H, new OpenCvSharp.Size(game.Canonical.Width, game.Canonical.Height), InterpolationFlags.Linear);
@@ -78,6 +91,8 @@ public sealed class VideoProcessor : BackgroundService
 
                 // contours
                 Cv2.FindContours(bin, out var contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+                contoursSum += contours.Length;
+
                 var dets = new List<Point2f>();
                 foreach (var c in contours)
                 {
@@ -91,9 +106,13 @@ public sealed class VideoProcessor : BackgroundService
                     if (m.M00 == 0) continue;
                     dets.Add(new Point2f((float)(m.M10 / m.M00), (float)(m.M01 / m.M00)));
                 }
+                detsSum += dets.Count;
 
                 var tracks = tracker.Update(dets);
-                foreach (var t in tracks)
+                var trackList = tracks as IList<Track> ?? tracks.ToList();
+                tracksSum += trackList.Count;
+
+                foreach (var t in trackList)
                 {
                     if (!t.HasVelocity || t.Vy <= 1.0f) continue; // downward only
                     var lane = WhichRoi(t.X, t.Y, rois);
@@ -102,8 +121,36 @@ public sealed class VideoProcessor : BackgroundService
                     if (DateTimeOffset.UtcNow - last < TimeSpan.FromMilliseconds(COOLDOWN_MS)) continue;
                     lastFire[lane] = DateTimeOffset.UtcNow;
                     var ev = DrainEvent.Auto(lane, conf: 0.8);
+                    drainsSum++;
                     await _stats.AddAsync(ev);
                     await _hub.BroadcastAsync(ev);
+                }
+
+                // annotate and store debug frame (downsampled for size)
+                using (var dbg = canon.Clone())
+                {
+                    // draw ROI outlines
+                    foreach (var m in rois)
+                    {
+                        var contoursRoi = Cv2.FindContoursAsArray(m.Mask, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+                        Cv2.DrawContours(dbg, contoursRoi, -1, m.Name switch { "L" => Scalar.LightSkyBlue, "C" => Scalar.LightCoral, _ => Scalar.LightGreen }, 2);
+                    }
+                    // draw tracks
+                    foreach (var t in trackList)
+                    {
+                        Cv2.Circle(dbg, (int)Math.Round(t.X), (int)Math.Round(t.Y), 6, Scalar.Yellow, 2);
+                    }
+                    // encode
+                    Cv2.Resize(dbg, dbg, new OpenCvSharp.Size(canon.Cols/2, canon.Rows/2));
+                    Cv2.ImEncode(".png", dbg, out var png);
+                    _debug.SetFrame(png, dbg.Cols, dbg.Rows, frames, contoursSum, detsSum, tracksSum, drainsSum);
+                }
+
+                if (sw.ElapsedMilliseconds >= 1000)
+                {
+                    _log.LogInformation("fps={FPS}, contours/f={CF:0.0}, dets/f={DF:0.0}, tracks/f={TF:0.0}, drains/s={Dr}",
+                        frames, contoursSum / (double)frames, detsSum / (double)frames, tracksSum / (double)frames, drainsSum);
+                    sw.Restart(); frames = contoursSum = detsSum = tracksSum = drainsSum = 0;
                 }
 
                 await Task.Delay(delay, stoppingToken);

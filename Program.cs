@@ -14,8 +14,8 @@ builder.WebHost.UseUrls("http://localhost:5173");
 builder.Services.AddSingleton<EventHub>();
 builder.Services.AddSingleton<StatsService>();
 builder.Services.AddSingleton<ProfileStore>();
-//builder.Services.AddSingleton<SettingsStore>();
-// Use the heuristic VideoProcessor in Services (new implementation)
+builder.Services.AddSingleton<SettingsStore>();
+builder.Services.AddSingleton<DebugState>();
 builder.Services.AddHostedService<PinDrain.Service.Services.VideoProcessor>();
 
 var app = builder.Build();
@@ -34,6 +34,46 @@ app.UseStaticFiles(new StaticFileOptions {
 app.MapGet("/overlay/calibrate", async ctx => {
     ctx.Response.ContentType = "text/html";
     await ctx.Response.SendFileAsync(Path.Combine(overlayPath, "calibrate.html"));
+});
+
+// debug endpoints
+app.MapGet("/api/debug/state", (DebugState dbg) => Results.Json(new {
+    dbg.Snapshot.Width,
+    dbg.Snapshot.Height,
+    dbg.Snapshot.Ts,
+    dbg.Snapshot.Frames,
+    dbg.Snapshot.Contours,
+    dbg.Snapshot.Dets,
+    dbg.Snapshot.Tracks,
+    dbg.Snapshot.Drains
+}));
+app.MapGet("/api/debug/frame", (DebugState dbg) => dbg.GetLastPng() is { } png ? Results.File(png, "image/png") : Results.NotFound());
+
+// video settings API (switch camera/file/url)
+app.MapGet("/api/settings/video", (SettingsStore s) => Results.Json(s.GetVideo()));
+app.MapPost("/api/settings/video", (SettingsStore s, VideoSettings vs) => { s.SaveVideo(vs); return Results.Ok(); });
+
+// probe server-side devices by index (0..8)
+app.MapGet("/api/settings/devices", () =>
+{
+    var list = new List<object>();
+    for (int i = 0; i <= 8; i++)
+    {
+        try
+        {
+            using var cap = new VideoCapture(i);
+            if (!cap.IsOpened()) { list.Add(new { index = i, opened = false }); continue; }
+            var w = cap.Get(VideoCaptureProperties.FrameWidth);
+            var h = cap.Get(VideoCaptureProperties.FrameHeight);
+            var fps = cap.Get(VideoCaptureProperties.Fps);
+            list.Add(new { index = i, opened = true, width = (int)w, height = (int)h, fps });
+        }
+        catch
+        {
+            list.Add(new { index = i, opened = false });
+        }
+    }
+    return Results.Json(list);
 });
 
 app.UseWebSockets();
