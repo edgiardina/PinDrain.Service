@@ -27,6 +27,9 @@
     #serverSrc { border-top:1px solid var(--border); margin: 0 12px; padding:10px 0; }
     #serverSrc .group { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:0 0 8px; }
     #serverSrc small { opacity:.8; }
+    #livePane { display:none; }
+    #liveStream { width: 100%; max-width: 500px; height: auto; border:1px solid #333; background:#000; }
+    #liveWrap { padding: 12px; text-align: center; }
   </style>
 </head>
 <body>
@@ -34,6 +37,7 @@
   <div id="tabs">
     <button id="tabQuad" class="active">Camera Quad</button>
     <button id="tabRoi">ROIs</button>
+    <button id="tabLive">Live Feed</button>
   </div>
 
   <div id="paneQuad">
@@ -105,6 +109,15 @@
     </div>
     <div id="roiWrap">
       <canvas id="roiCanvas" width="1000" height="2000"></canvas>
+    </div>
+  </div>
+
+  <div id="livePane">
+    <div id="liveWrap">
+      <h3>Live Detector Feed</h3>
+      <p>Real-time view of what the detector sees with ROI overlays and tracked objects.</p>
+      <img id="liveStream" src="/api/debug/stream" alt="Live detector feed" />
+      <p><small>Yellow dots = tracked objects, colored outlines = ROI boundaries</small></p>
     </div>
   </div>
 

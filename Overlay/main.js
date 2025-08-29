@@ -7,6 +7,7 @@ const valR = document.getElementById('valR');
 const ticker = document.getElementById('ticker');
 
 let counts = { L: 0, C: 0, R: 0 };
+let recentEvents = [];
 
 function render() {
     const total = Math.max(1, counts.L + counts.C + counts.R);
@@ -18,14 +19,33 @@ function render() {
     barC.style.width = pC + '%';
     barR.style.width = pR + '%';
 
-    // simple colors; theme as you like
-    barL.style.background = 'rgba(0,200,255,.9)';
-    barC.style.background = 'rgba(255,80,80,.9)';
-    barR.style.background = 'rgba(0,255,130,.9)';
-
     valL.textContent = `${counts.L} (${pL}%)`;
     valC.textContent = `${counts.C} (${pC}%)`;
     valR.textContent = `${counts.R} (${pR}%)`;
+}
+
+function flashLane(lane) {
+    const laneElement = document.querySelector(`.lane.${lane.toLowerCase() === 'l' ? 'left' : lane.toLowerCase() === 'c' ? 'center' : 'right'}`);
+    if (laneElement) {
+        laneElement.classList.add('active');
+        setTimeout(() => laneElement.classList.remove('active'), 500);
+    }
+}
+
+function updateTicker() {
+    if (recentEvents.length === 0) {
+        ticker.textContent = 'No recent activity';
+        return;
+    }
+    
+    const recent = recentEvents.slice(-3).map(e => {
+        const laneMap = { L: 'Left', C: 'Center', R: 'Right' };
+        const conf = Math.round((e.confidence ?? 1) * 100);
+        const source = e.source === 'auto' ? '🤖' : '👤';
+        return `${source} ${laneMap[e.lane]} (${conf}%)`;
+    }).join(' • ');
+    
+    ticker.textContent = recent;
 }
 
 function applyEvent(ev) {
@@ -37,32 +57,62 @@ function applyEvent(ev) {
     if (!['L', 'C', 'R'].includes(lane)) return;
 
     counts[lane]++;
+    
+    // Store event for ticker
+    recentEvents.push({
+        lane,
+        confidence: ev.confidence ?? ev.Confidence ?? 1,
+        source: ev.source ?? ev.Source ?? 'auto',
+        timestamp: Date.now()
+    });
+    
+    // Keep only last 10 events
+    if (recentEvents.length > 10) {
+        recentEvents = recentEvents.slice(-10);
+    }
+    
     render();
-
-    const conf = ev.confidence ?? ev.Confidence ?? 1;
-    ticker.textContent = `Drain: ${lane} • conf ${Math.round(conf * 100)}%`;
-    setTimeout(() => (ticker.textContent = ''), 2000);
+    flashLane(lane);
+    updateTicker();
 }
 
 async function bootstrap() {
     // initial stats with key-casing fallback (L/C/R vs l/c/r)
-    const s = await fetch('/api/stats').then(r => r.json());
-    const lanes = s.lanes || {};
-    counts.L = (lanes.L ?? lanes.l)?.count ?? 0;
-    counts.C = (lanes.C ?? lanes.c)?.count ?? 0;
-    counts.R = (lanes.R ?? lanes.r)?.count ?? 0;
-    render();
+    try {
+        const s = await fetch('/api/stats').then(r => r.json());
+        const lanes = s.lanes || {};
+        counts.L = (lanes.L ?? lanes.l)?.count ?? 0;
+        counts.C = (lanes.C ?? lanes.c)?.count ?? 0;
+        counts.R = (lanes.R ?? lanes.r)?.count ?? 0;
+        render();
+        updateTicker();
+    } catch (error) {
+        console.error('Failed to load initial stats:', error);
+    }
 
     const ws = new WebSocket(`ws://${location.host}/ws`);
+    
+    ws.onopen = () => {
+        ticker.textContent = 'Connected to PinDrain';
+        setTimeout(updateTicker, 2000);
+    };
+    
     ws.onmessage = m => {
         try {
             applyEvent(JSON.parse(m.data));
-        } catch {
-            /* ignore */
+        } catch (error) {
+            console.error('Failed to parse message:', error);
         }
     };
+    
     ws.onclose = () => {
-        ticker.textContent = 'WS disconnected';
+        ticker.textContent = 'Connection lost - attempting reconnect...';
+        // Attempt to reconnect after 3 seconds
+        setTimeout(bootstrap, 3000);
+    };
+    
+    ws.onerror = () => {
+        ticker.textContent = 'Connection error';
     };
 }
 

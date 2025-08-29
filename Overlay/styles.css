@@ -1,13 +1,267 @@
-html,body{margin:0;padding:0;background:transparent;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-#wrap{width:800px;height:180px;display:flex;flex-direction:column;justify-content:center;gap:10px;color:#fff}
-#title{font-weight:700;letter-spacing:.5px;text-shadow:0 2px 6px rgba(0,0,0,.5)}
-#bars{display:flex;gap:12px}
-.lane{flex:1}
-.label{font-size:14px;opacity:.8}
-.bar{height:18px;background:rgba(255,255,255,.15);border-radius:9px;overflow:hidden}
-.bar span{display:block;height:100%}
-#barL{width:0%}
-#barC{width:0%}
-#barR{width:0%}
-.val{font-size:12px;margin-top:4px;opacity:.9}
-#ticker{font-size:12px;opacity:.85;height:18px}
+/* PinDrain Overlay Styles - Professional Gaming Overlay Design */
+:root {
+  --primary-blue: #00d4ff;
+  --primary-purple: #8b5cf6;
+  --accent-yellow: #fbbf24;
+  --bg-dark: #0f0f0f;
+  --bg-panel: rgba(15, 15, 15, 0.95);
+  --bg-card: rgba(30, 30, 40, 0.9);
+  --text-primary: #ffffff;
+  --text-secondary: #a3a3a3;
+  --border-glow: rgba(0, 212, 255, 0.3);
+  --shadow-strong: 0 8px 32px rgba(0, 0, 0, 0.8);
+  --shadow-glow: 0 0 20px rgba(0, 212, 255, 0.4);
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+}
+
+#overlay-container {
+  width: 420px;
+  height: 280px;
+  position: relative;
+  background: var(--bg-panel);
+  border: 2px solid var(--primary-blue);
+  border-radius: 16px;
+  box-shadow: var(--shadow-strong), var(--shadow-glow);
+  backdrop-filter: blur(12px);
+  padding: 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Brand Section */
+#brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#brand-logo {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+#brand-text {
+  font-size: 24px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 2px 8px rgba(0, 212, 255, 0.3);
+  letter-spacing: 0.5px;
+}
+
+/* Stats Panel */
+#stats-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+#title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+  opacity: 0.9;
+  letter-spacing: 0.3px;
+}
+
+/* Lane Statistics */
+#bars {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+}
+
+.lane {
+  flex: 1;
+  background: var(--bg-card);
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.lane::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  opacity: 0.6;
+}
+
+.lane.left::before {
+  background: linear-gradient(90deg, var(--primary-blue), transparent);
+}
+
+.lane.center::before {
+  background: linear-gradient(90deg, var(--accent-yellow), transparent);
+}
+
+.lane.right::before {
+  background: linear-gradient(90deg, var(--primary-purple), transparent);
+}
+
+.lane-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.label {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  width: 20px;
+  text-align: center;
+}
+
+.lane-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.bar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+  position: relative;
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+#barL {
+  background: linear-gradient(90deg, var(--primary-blue), #0ea5e9);
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.4);
+  width: 0%;
+}
+
+#barC {
+  background: linear-gradient(90deg, var(--accent-yellow), #f59e0b);
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.4);
+  width: 0%;
+}
+
+#barR {
+  background: linear-gradient(90deg, var(--primary-purple), #a855f7);
+  box-shadow: 0 0 8px rgba(139, 92, 246, 0.4);
+  width: 0%;
+}
+
+.val {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Ticker Section */
+#ticker-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  min-height: 20px;
+}
+
+#ticker-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-width: 50px;
+}
+
+#ticker {
+  font-size: 12px;
+  color: var(--text-primary);
+  opacity: 0.9;
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Animations and Effects */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.lane.active {
+  animation: pulse 0.5s ease-in-out;
+  border-color: var(--primary-blue);
+  box-shadow: 0 0 16px rgba(0, 212, 255, 0.3);
+}
+
+.bar span::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  #overlay-container {
+    width: 360px;
+    height: 240px;
+    padding: 16px;
+  }
+  
+  #brand-text {
+    font-size: 20px;
+  }
+  
+  .lane {
+    padding: 10px;
+  }
+}

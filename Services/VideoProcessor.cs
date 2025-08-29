@@ -16,11 +16,19 @@ public sealed class VideoProcessor : BackgroundService
     private readonly ILogger<VideoProcessor> _log;
     private readonly DebugState _debug;
 
-    // Tunables
+    // Tunables - relaxed for better drain detection
     private const int FPS_TARGET = 30;
-    private const double MIN_AREA = 15, MAX_AREA = 400;
-    private const double ROUND_MIN = 0.65; // circularity
-    private const int COOLDOWN_MS = 600;
+    private const double MIN_AREA = 8, MAX_AREA = 600;    // lowered MIN_AREA, raised MAX_AREA
+    private const double ROUND_MIN = 0.4;                 // much more permissive circularity
+    private const float VY_MIN = 0.8f;                    // allow slower downward movement
+    private const int COOLDOWN_MS = 400;                  // shorter cooldown
+
+    // Foreground / nudge control - kept for nudge suppression
+    private const int BGS_HISTORY = 600;                  // slightly lower for more responsiveness
+    private const double BGS_VARTHRESH = 20;              // lower = more sensitive to movement
+    private const bool BGS_SHADOWS = true;                // shadow value=127 (ignored by threshold 200)
+    private const double NUDGE_FG_FRACTION = 0.25;        // higher threshold for nudge detection
+    private const int NUDGE_SUPPRESS_MS = 250;            // shorter suppression window
 
     // Fallback source selection when SettingsStore is not registered
     private readonly int _deviceIndex = 0; // OBS Virtual Cam usually 0/1
@@ -40,22 +48,27 @@ public sealed class VideoProcessor : BackgroundService
             try { (cam, game) = _profiles.GetActive(); }
             catch { await Task.Delay(2000, stoppingToken); return; }
 
+            // Open capture first to know source size
             using var cap = OpenCaptureOptional();
             if (cap is null || !cap.IsOpened()) { _log.LogWarning("Video source not opened"); return; }
-
             var capW = (int)cap.Get(VideoCaptureProperties.FrameWidth);
             var capH = (int)cap.Get(VideoCaptureProperties.FrameHeight);
+            var capFps = cap.Get(VideoCaptureProperties.Fps);
 
-            // Homography with quad scaled to current capture size when needed
+            // Homography and masks
             using var H = Homography.ComputeHomography(cam.Quad, game.Canonical, cam.Scene, capW, capH);
             using var mL = new RoiMask("L", game.Canonical, game.Rois["leftOutlane"]);
             using var mC = new RoiMask("C", game.Canonical, game.Rois["centerDrain"]);
             using var mR = new RoiMask("R", game.Canonical, game.Rois["rightOutlane"]);
             var rois = new[] { mL, mC, mR };
+            using var roiUnion = new Mat(game.Canonical.Height, game.Canonical.Width, MatType.CV_8UC1, Scalar.Black);
+            Cv2.BitwiseOr(mL.Mask, mC.Mask, roiUnion);
+            Cv2.BitwiseOr(roiUnion, mR.Mask, roiUnion);
+            int roiArea = Math.Max(1, Cv2.CountNonZero(roiUnion));
 
-            _log.LogInformation("Capture: {W}x{H} @ {FPS:0.##}fps; Quad scaled from scene {SW}x{SH}", capW, capH, cap.Get(VideoCaptureProperties.Fps), cam.Scene?.Width, cam.Scene?.Height);
+            _log.LogInformation("Capture: {W}x{H} @ {FPS:0.##}fps; Quad scaled from scene {SW}x{SH}", capW, capH, capFps, cam.Scene?.Width, cam.Scene?.Height);
 
-            using var bgs = BackgroundSubtractorMOG2.Create(history: 500, varThreshold: 16, detectShadows: false);
+            using var bgs = BackgroundSubtractorMOG2.Create(history: BGS_HISTORY, varThreshold: BGS_VARTHRESH, detectShadows: BGS_SHADOWS);
             var tracker = new CentroidTracker();
 
             var lastFire = new Dictionary<string, DateTimeOffset> {
@@ -73,6 +86,7 @@ public sealed class VideoProcessor : BackgroundService
             // per-second diagnostics
             var sw = Stopwatch.StartNew();
             int frames = 0, contoursSum = 0, detsSum = 0, tracksSum = 0, drainsSum = 0;
+            DateTimeOffset suppressUntil = DateTimeOffset.MinValue;
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -84,8 +98,28 @@ public sealed class VideoProcessor : BackgroundService
 
                 // foreground mask
                 bgs.Apply(canon, fg);
-                Cv2.Threshold(fg, bin, 200, 255, ThresholdTypes.Binary);
+                Cv2.Threshold(fg, bin, 200, 255, ThresholdTypes.Binary); // ignore shadows (127)
                 Cv2.MedianBlur(bin, bin, 3);
+
+                // restrict analysis to union of ROIs to reduce false positives
+                Cv2.BitwiseAnd(bin, roiUnion, bin);
+
+                // nudge suppression: if too many fg pixels in ROI area at once, skip for a short time
+                var nz = Cv2.CountNonZero(bin);
+                if (nz > roiArea * NUDGE_FG_FRACTION)
+                {
+                    suppressUntil = DateTimeOffset.UtcNow.AddMilliseconds(NUDGE_SUPPRESS_MS);
+                }
+                if (DateTimeOffset.UtcNow < suppressUntil)
+                {
+                    if (sw.ElapsedMilliseconds >= 1000)
+                    {
+                        _log.LogInformation("fps={FPS}, nudge-suppressed", frames);
+                        sw.Restart(); frames = contoursSum = detsSum = tracksSum = drainsSum = 0;
+                    }
+                    await Task.Delay(delay, stoppingToken);
+                    continue;
+                }
 
                 // contours
                 Cv2.FindContours(bin, out var contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
@@ -112,7 +146,7 @@ public sealed class VideoProcessor : BackgroundService
 
                 foreach (var t in trackList)
                 {
-                    if (!t.HasVelocity || t.Vy <= 1.0f) continue; // downward only
+                    if (!t.HasVelocity || t.Vy <= VY_MIN) continue; // downward only, but allow slower movement
                     var lane = WhichRoi(t.X, t.Y, rois);
                     if (lane == null) continue;
                     var last = lastFire[lane];

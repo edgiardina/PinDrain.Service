@@ -49,6 +49,30 @@ app.MapGet("/api/debug/state", (DebugState dbg) => Results.Json(new {
 }));
 app.MapGet("/api/debug/frame", (DebugState dbg) => dbg.GetLastPng() is { } png ? Results.File(png, "image/png") : Results.NotFound());
 
+// live debug stream (MJPEG)
+app.MapGet("/api/debug/stream", async (HttpContext ctx, DebugState debug) =>
+{
+    ctx.Response.ContentType = "multipart/x-mixed-replace; boundary=--frame";
+    await ctx.Response.Body.FlushAsync();
+
+    try
+    {
+        while (!ctx.RequestAborted.IsCancellationRequested)
+        {
+            var png = debug.GetLastPng();
+            if (png is { Length: > 0 })
+            {
+                var boundary = "\r\n--frame\r\nContent-Type: image/png\r\nContent-Length: " + png.Length + "\r\n\r\n";
+                await ctx.Response.Body.WriteAsync(System.Text.Encoding.ASCII.GetBytes(boundary), ctx.RequestAborted);
+                await ctx.Response.Body.WriteAsync(png, ctx.RequestAborted);
+                await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+            }
+            await Task.Delay(100, ctx.RequestAborted); // ~10 FPS
+        }
+    }
+    catch (OperationCanceledException) { /* client disconnected */ }
+});
+
 // video settings API (switch camera/file/url)
 app.MapGet("/api/settings/video", (SettingsStore s) => Results.Json(s.GetVideo()));
 app.MapPost("/api/settings/video", (SettingsStore s, VideoSettings vs) => { s.SaveVideo(vs); return Results.Ok(); });

@@ -1,4 +1,4 @@
-// Calibration page: video underlay + quad editor (Tab 1), ROI polygon editor with warped snapshot (Tab 2)
+// Calibration page: video underlay + quad editor (Tab 1), ROI polygon editor with warped snapshot (Tab 2), Live feed (Tab 3)
 
 // Run after DOM is fully parsed
 window.addEventListener('DOMContentLoaded', () => {
@@ -156,8 +156,10 @@ window.addEventListener('DOMContentLoaded', () => {
   // ============== Tabs + ROI Editor ==============
   const tabQuad   = document.getElementById('tabQuad');
   const tabRoi    = document.getElementById('tabRoi');
+  const tabLive   = document.getElementById('tabLive');
   const paneQuad  = document.getElementById('paneQuad');
   const roiPane   = document.getElementById('roiPane');
+  const livePane  = document.getElementById('livePane');
   const snapBtn   = document.getElementById('snapBtn');
   const roiSelect = document.getElementById('roiSelect');
   const roiClear  = document.getElementById('roiClear');
@@ -181,9 +183,10 @@ window.addEventListener('DOMContentLoaded', () => {
   roiCanvas.addEventListener('pointerup', ()=>roiDrag=-1); roiCanvas.addEventListener('pointerleave', ()=>roiDrag=-1);
   document.addEventListener('keydown', e=>{ if(e.key==='Backspace'||e.key==='Delete'){ const arr=rois[roiSelect.value]; if(arr.length>0){ arr.pop(); drawRois(); } } });
   roiClear.onclick=()=>{ rois[roiSelect.value]=[]; drawRois(); };
-  function showQuad(){ tabQuad.classList.add('active'); tabRoi.classList.remove('active'); paneQuad.style.display='block'; roiPane.style.display='none'; }
-  function showRoi(){ tabRoi.classList.add('active'); tabQuad.classList.remove('active'); paneQuad.style.display='none'; roiPane.style.display='block'; drawRois(); }
-  tabQuad.onclick=showQuad; tabRoi.onclick=showRoi;
+  function showQuad(){ tabQuad.classList.add('active'); tabRoi.classList.remove('active'); tabLive.classList.remove('active'); paneQuad.style.display='block'; roiPane.style.display='none'; livePane.style.display='none'; }
+  function showRoi(){ tabRoi.classList.add('active'); tabQuad.classList.remove('active'); tabLive.classList.remove('active'); paneQuad.style.display='none'; roiPane.style.display='block'; livePane.style.display='none'; drawRois(); }
+  function showLive(){ tabLive.classList.add('active'); tabQuad.classList.remove('active'); tabRoi.classList.remove('active'); paneQuad.style.display='none'; roiPane.style.display='none'; livePane.style.display='block'; }
+  tabQuad.onclick=showQuad; tabRoi.onclick=showRoi; tabLive.onclick=showLive;
 
   snapBtn.onclick=async()=>{ if(!feed.videoWidth||!feed.videoHeight||!quad) return; const tmp=document.createElement('canvas'); tmp.width=feed.videoWidth; tmp.height=feed.videoHeight; tmp.getContext('2d').drawImage(feed,0,0); const dataUrl=tmp.toDataURL('image/png'); const oq=orderedQuad(quad); const body={ canonical:{width:CAN.width,height:CAN.height}, quad:oq.map(p=>({x:p.x,y:p.y})), imageBase64:dataUrl }; const res=await fetch('/api/calibrate/warp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); if(!res.ok){ roiMsg.textContent='Warp failed'; setTimeout(()=>roiMsg.textContent='',2000); return; } const blob=await res.blob(); roiBg=await createImageBitmap(blob); drawRois(); };
 

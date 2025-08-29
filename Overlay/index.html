@@ -7,14 +7,44 @@
   <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
-  <div id="wrap">
-    <div id="title">Drains L / C / R</div>
-    <div id="bars">
-      <div class="lane"><div class="label">L</div><div class="bar"><span id="barL"></span></div><div id="valL" class="val">0 (0%)</div></div>
-      <div class="lane"><div class="label">C</div><div class="bar"><span id="barC"></span></div><div id="valC" class="val">0 (0%)</div></div>
-      <div class="lane"><div class="label">R</div><div class="bar"><span id="barR"></span></div><div id="valR" class="val">0 (0%)</div></div>
+  <div id="overlay-container">
+    <div id="brand">
+      <div id="brand-logo">⚡</div>
+      <div id="brand-text">PinDrain</div>
     </div>
-    <div id="ticker"></div>
+    <div id="stats-panel">
+      <div id="title">Ball Drain Statistics</div>
+      <div id="bars">
+        <div class="lane left">
+          <div class="lane-header">
+            <div class="label">L</div>
+            <div class="lane-name">Outlane</div>
+          </div>
+          <div class="bar"><span id="barL"></span></div>
+          <div id="valL" class="val">0 (0%)</div>
+        </div>
+        <div class="lane center">
+          <div class="lane-header">
+            <div class="label">C</div>
+            <div class="lane-name">Center</div>
+          </div>
+          <div class="bar"><span id="barC"></span></div>
+          <div id="valC" class="val">0 (0%)</div>
+        </div>
+        <div class="lane right">
+          <div class="lane-header">
+            <div class="label">R</div>
+            <div class="lane-name">Outlane</div>
+          </div>
+          <div class="bar"><span id="barR"></span></div>
+          <div id="valR" class="val">0 (0%)</div>
+        </div>
+      </div>
+      <div id="ticker-section">
+        <div id="ticker-label">Recent:</div>
+        <div id="ticker"></div>
+      </div>
+    </div>
   </div>
   <script src="main.js"></script>
 </body>
