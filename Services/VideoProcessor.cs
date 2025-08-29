@@ -40,22 +40,20 @@ public sealed class VideoProcessor : BackgroundService
             try { (cam, game) = _profiles.GetActive(); }
             catch { await Task.Delay(2000, stoppingToken); return; }
 
-            // Compute homography and masks
-            using var H = Homography.ComputeHomography(cam.Quad, game.Canonical);
+            using var cap = OpenCaptureOptional();
+            if (cap is null || !cap.IsOpened()) { _log.LogWarning("Video source not opened"); return; }
+
+            var capW = (int)cap.Get(VideoCaptureProperties.FrameWidth);
+            var capH = (int)cap.Get(VideoCaptureProperties.FrameHeight);
+
+            // Homography with quad scaled to current capture size when needed
+            using var H = Homography.ComputeHomography(cam.Quad, game.Canonical, cam.Scene, capW, capH);
             using var mL = new RoiMask("L", game.Canonical, game.Rois["leftOutlane"]);
             using var mC = new RoiMask("C", game.Canonical, game.Rois["centerDrain"]);
             using var mR = new RoiMask("R", game.Canonical, game.Rois["rightOutlane"]);
             var rois = new[] { mL, mC, mR };
 
-            // Open capture: try SettingsStore if available, else fallback
-            using var cap = OpenCaptureOptional();
-            if (cap is null || !cap.IsOpened()) { _log.LogWarning("Video source not opened"); return; }
-
-            // Log capture props once
-            var capW = cap.Get(VideoCaptureProperties.FrameWidth);
-            var capH = cap.Get(VideoCaptureProperties.FrameHeight);
-            var capFps = cap.Get(VideoCaptureProperties.Fps);
-            _log.LogInformation("Capture: {W}x{H} @ {FPS:0.##}fps", capW, capH, capFps);
+            _log.LogInformation("Capture: {W}x{H} @ {FPS:0.##}fps; Quad scaled from scene {SW}x{SH}", capW, capH, cap.Get(VideoCaptureProperties.Fps), cam.Scene?.Width, cam.Scene?.Height);
 
             using var bgs = BackgroundSubtractorMOG2.Create(history: 500, varThreshold: 16, detectShadows: false);
             var tracker = new CentroidTracker();

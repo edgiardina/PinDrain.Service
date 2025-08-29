@@ -69,6 +69,15 @@ window.addEventListener('DOMContentLoaded', () => {
   function pointInPoly(px,py){ let inside=false; for(let i=0,j=3;i<4;j=i++){ const xi=quad[i].x, yi=quad[i].y, xj=quad[j].x, yj=quad[j].y; const inter=((yi>py)!==(yj>py)) && (px < (xj-xi)*(py-yi)/((yj-yi)||1e-6)+xi); if(inter) inside=!inside; } return inside; }
   function clamp(v,min,max){ return Math.max(min, Math.min(max,v)); }
 
+  // normalize quad order to TL,TR,BR,BL (clockwise)
+  function orderedQuad(q){
+    const pts = q.slice();
+    pts.sort((a,b)=>a.y-b.y);
+    const top = pts.slice(0,2).sort((a,b)=>a.x-b.x);
+    const bot = pts.slice(2,4).sort((a,b)=>a.x-b.x);
+    return [ top[0], top[1], bot[1], bot[0] ];
+  }
+
   canvas.addEventListener('pointerdown', e => {
     const r=canvas.getBoundingClientRect(); const mx=(e.clientX-r.left)*(canvas.width/r.width); const my=(e.clientY-r.top)*(canvas.height/r.height);
     const hi=hitHandle(mx,my);
@@ -131,7 +140,15 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Save camera quad
   saveBtn.onclick=async()=>{
-    const body={ id:camId.value.trim()||'scene-1', name:camName.value.trim()||'DeskCam', canonical:{width:1000,height:2000}, quad:quad.map(p=>({x:Math.round(p.x),y:Math.round(p.y)})) };
+    const oq = orderedQuad(quad);
+    const quadPayload = oq.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) }));
+    const body = {
+      id: camId.value.trim() || 'scene-1',
+      name: camName.value.trim() || 'DeskCam',
+      canonical: { width: 1000, height: 2000 },
+      quad: quadPayload,
+      scene: { width: feed.videoWidth || canvas.width || 1280, height: feed.videoHeight || canvas.height || 720 }
+    };
     const res=await fetch('/api/profiles/camera',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     msg.textContent=res.ok?'Saved ?':'Save failed'; setTimeout(()=>msg.textContent='',2000);
   };
@@ -168,7 +185,7 @@ window.addEventListener('DOMContentLoaded', () => {
   function showRoi(){ tabRoi.classList.add('active'); tabQuad.classList.remove('active'); paneQuad.style.display='none'; roiPane.style.display='block'; drawRois(); }
   tabQuad.onclick=showQuad; tabRoi.onclick=showRoi;
 
-  snapBtn.onclick=async()=>{ if(!feed.videoWidth||!feed.videoHeight||!quad) return; const tmp=document.createElement('canvas'); tmp.width=feed.videoWidth; tmp.height=feed.videoHeight; tmp.getContext('2d').drawImage(feed,0,0); const dataUrl=tmp.toDataURL('image/png'); const body={ canonical:{width:CAN.width,height:CAN.height}, quad:quad.map(p=>({x:p.x,y:p.y})), imageBase64:dataUrl }; const res=await fetch('/api/calibrate/warp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); if(!res.ok){ roiMsg.textContent='Warp failed'; setTimeout(()=>roiMsg.textContent='',2000); return; } const blob=await res.blob(); roiBg=await createImageBitmap(blob); drawRois(); };
+  snapBtn.onclick=async()=>{ if(!feed.videoWidth||!feed.videoHeight||!quad) return; const tmp=document.createElement('canvas'); tmp.width=feed.videoWidth; tmp.height=feed.videoHeight; tmp.getContext('2d').drawImage(feed,0,0); const dataUrl=tmp.toDataURL('image/png'); const oq=orderedQuad(quad); const body={ canonical:{width:CAN.width,height:CAN.height}, quad:oq.map(p=>({x:p.x,y:p.y})), imageBase64:dataUrl }; const res=await fetch('/api/calibrate/warp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); if(!res.ok){ roiMsg.textContent='Warp failed'; setTimeout(()=>roiMsg.textContent='',2000); return; } const blob=await res.blob(); roiBg=await createImageBitmap(blob); drawRois(); };
 
   saveGame.onclick=async()=>{ const body={ id:gameId.value.trim()||'generic-pin', name:gameName.value.trim()||'Generic Pin', canonical:{width:CAN.width,height:CAN.height}, rois }; const res=await fetch('/api/profiles/game',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); roiMsg.textContent=res.ok?'Saved ?':'Save failed'; setTimeout(()=>roiMsg.textContent='',2000); };
   activate.onclick=async()=>{ const body={ cameraId: (camId?.value||'scene-1'), gameId: gameId.value.trim()||'generic-pin' }; const res=await fetch('/api/profiles/activate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); roiMsg.textContent=res.ok?'Activated ?':'Activate failed'; setTimeout(()=>roiMsg.textContent='',2000); };

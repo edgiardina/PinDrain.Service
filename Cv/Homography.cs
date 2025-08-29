@@ -6,27 +6,31 @@ namespace PinDrain.Service.Cv;
 
 public static class Homography
 {
-    // Compute H mapping scene-space quad -> canonical rectangle (0,0)-(W,H).
-    public static Mat ComputeHomography(PointF[] quad, ModelSize canonical)
+    // Compute H mapping scene-space quad -> canonical rectangle (0,0)-(W-1,H-1).
+    // If the saved camera profile had a different scene size than the current frame, scale the quad first.
+    public static Mat ComputeHomography(PointF[] quad, ModelSize canonical, ModelSize? sceneSize = null, int? currentFrameWidth = null, int? currentFrameHeight = null)
     {
-        if (quad.Length != 4) throw new ArgumentException("quad must have 4 points TL,TR,BR,BL");
-        var src = new Point2f[]
+        var srcPts = new Point2f[4];
+        for (int i = 0; i < 4; i++) srcPts[i] = new(quad[i].X, quad[i].Y);
+
+        // Scale if we know saved scene size and current capture size
+        if (sceneSize is { } s && currentFrameWidth is { } cw && currentFrameHeight is { } ch && s.Width > 0 && s.Height > 0)
         {
-            new(quad[0].X, quad[0].Y),
-            new(quad[1].X, quad[1].Y),
-            new(quad[2].X, quad[2].Y),
-            new(quad[3].X, quad[3].Y),
-        };
+            var sx = cw / (float)s.Width;
+            var sy = ch / (float)s.Height;
+            for (int i = 0; i < 4; i++) srcPts[i] = new Point2f(srcPts[i].X * sx, srcPts[i].Y * sy);
+        }
+
         var w = canonical.Width;
         var h = canonical.Height;
         var dst = new Point2f[]
         {
             new(0, 0),
-            new(w, 0),
-            new(w, h),
-            new(0, h)
+            new(w - 1, 0),
+            new(w - 1, h - 1),
+            new(0, h - 1)
         };
-        return Cv2.GetPerspectiveTransform(src, dst);
+        return Cv2.GetPerspectiveTransform(srcPts, dst);
     }
 }
 

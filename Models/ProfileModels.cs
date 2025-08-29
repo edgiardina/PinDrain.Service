@@ -7,7 +7,7 @@ public record Size(int Width, int Height);
 public record PointF(float X, float Y);
 
 // Quad points are TL, TR, BR, BL in scene space (clockwise).
-public record CameraProfile(string Id, string Name, Size Canonical, PointF[] Quad);
+public record CameraProfile(string Id, string Name, Size Canonical, PointF[] Quad, Size? Scene = null);
 
 // ROIs are polygons in canonical space: [[x,y], ...].
 public record GameProfile(string Id, string Name, Size Canonical, Dictionary<string, float[][]> Rois);
