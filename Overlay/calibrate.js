@@ -29,8 +29,37 @@ window.addEventListener('DOMContentLoaded', () => {
   const vidSave     = document.getElementById('vidSave');
   const vidMsg      = document.getElementById('vidMsg');
 
-  if (!mode || !device || !pickBtn || !saveBtn || !feed || !canvas || !ctx || !camId || !camName || !lockRect || !stage || !vidModeSel || !vidDeviceId || !vidSave) {
-    console.error('Calibration DOM not ready. Missing one or more elements.');
+  // ============== Tabs + ROI Editor ==============
+  const tabQuad   = document.getElementById('tabQuad');
+  const tabRoi    = document.getElementById('tabRoi');
+  const tabLive   = document.getElementById('tabLive');
+  const paneQuad  = document.getElementById('paneQuad');
+  const roiPane   = document.getElementById('roiPane');
+  const livePane  = document.getElementById('livePane');
+  const snapBtn   = document.getElementById('snapBtn');
+  const roiSelect = document.getElementById('roiSelect');
+  const roiClear  = document.getElementById('roiClear');
+  const roiCanvas = document.getElementById('roiCanvas');
+  const rctx      = roiCanvas ? roiCanvas.getContext('2d') : null;
+  const gameId    = document.getElementById('gameId');
+  const gameName  = document.getElementById('gameName');
+  const saveGame  = document.getElementById('saveGame');
+  const activate  = document.getElementById('activate');
+  const roiMsg    = document.getElementById('roiMsg');
+
+  // Check for missing elements and provide better error handling
+  const requiredElements = {
+    mode, device, pickBtn, saveBtn, feed, canvas, ctx, camId, camName, lockRect, stage,
+    vidModeSel, vidDeviceId, vidSave, tabQuad, tabRoi, tabLive, paneQuad, roiPane, livePane
+  };
+  
+  const missingElements = Object.entries(requiredElements)
+    .filter(([name, element]) => !element)
+    .map(([name]) => name);
+    
+  if (missingElements.length > 0) {
+    console.error('Missing DOM elements:', missingElements);
+    alert('Calibration interface not ready. Missing elements: ' + missingElements.join(', '));
     return;
   }
 
@@ -153,48 +182,111 @@ window.addEventListener('DOMContentLoaded', () => {
     msg.textContent=res.ok?'Saved ?':'Save failed'; setTimeout(()=>msg.textContent='',2000);
   };
 
-  // ============== Tabs + ROI Editor ==============
-  const tabQuad   = document.getElementById('tabQuad');
-  const tabRoi    = document.getElementById('tabRoi');
-  const tabLive   = document.getElementById('tabLive');
-  const paneQuad  = document.getElementById('paneQuad');
-  const roiPane   = document.getElementById('roiPane');
-  const livePane  = document.getElementById('livePane');
-  const snapBtn   = document.getElementById('snapBtn');
-  const roiSelect = document.getElementById('roiSelect');
-  const roiClear  = document.getElementById('roiClear');
-  const roiCanvas = document.getElementById('roiCanvas');
-  const rctx      = roiCanvas.getContext('2d');
-  const gameId    = document.getElementById('gameId');
-  const gameName  = document.getElementById('gameName');
-  const saveGame  = document.getElementById('saveGame');
-  const activate  = document.getElementById('activate');
-  const roiMsg    = document.getElementById('roiMsg');
-
   const CAN = { width: 1000, height: 2000 };
   let roiBg = null; // ImageBitmap
   const rois = { leftOutlane:[], centerDrain:[], rightOutlane:[] };
 
-  function drawRois(){ rctx.clearRect(0,0,roiCanvas.width,roiCanvas.height); if(roiBg) rctx.drawImage(roiBg,0,0,roiCanvas.width,roiCanvas.height); const colors={ leftOutlane:'rgba(0,200,255,0.35)', centerDrain:'rgba(255,80,80,0.35)', rightOutlane:'rgba(0,255,130,0.35)'}; const strokes={ leftOutlane:'#00c8ff', centerDrain:'#ff5050', rightOutlane:'#00ff82'}; for(const key of Object.keys(rois)){ const pts=rois[key]; if(!pts.length) continue; rctx.beginPath(); rctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) rctx.lineTo(pts[i][0],pts[i][1]); rctx.closePath(); rctx.fillStyle=colors[key]; rctx.fill(); rctx.lineWidth=2; rctx.strokeStyle=strokes[key]; rctx.stroke(); } const active=roiSelect.value; const pts=rois[active]; rctx.fillStyle='#fff'; rctx.strokeStyle=strokes[active]; for(const p of pts){ rctx.beginPath(); rctx.arc(p[0],p[1],5,0,Math.PI*2); rctx.fill(); rctx.stroke(); } }
+  function drawRois(){ 
+    if (!rctx) return;
+    rctx.clearRect(0,0,roiCanvas.width,roiCanvas.height); 
+    if(roiBg) rctx.drawImage(roiBg,0,0,roiCanvas.width,roiCanvas.height); 
+    const colors={ leftOutlane:'rgba(0,200,255,0.35)', centerDrain:'rgba(255,80,80,0.35)', rightOutlane:'rgba(0,255,130,0.35)'}; 
+    const strokes={ leftOutlane:'#00c8ff', centerDrain:'#ff5050', rightOutlane:'#00ff82'}; 
+    for(const key of Object.keys(rois)){ 
+      const pts=rois[key]; 
+      if(!pts.length) continue; 
+      rctx.beginPath(); 
+      rctx.moveTo(pts[0][0],pts[0][1]); 
+      for(let i=1;i<pts.length;i++) rctx.lineTo(pts[i][0],pts[i][1]); 
+      rctx.closePath(); 
+      rctx.fillStyle=colors[key]; 
+      rctx.fill(); 
+      rctx.lineWidth=2; 
+      rctx.strokeStyle=strokes[key]; 
+      rctx.stroke(); 
+    } 
+    const active=roiSelect.value; 
+    const pts=rois[active]; 
+    rctx.fillStyle='#fff'; 
+    rctx.strokeStyle=strokes[active]; 
+    for(const p of pts){ 
+      rctx.beginPath(); 
+      rctx.arc(p[0],p[1],5,0,Math.PI*2); 
+      rctx.fill(); 
+      rctx.stroke(); 
+    } 
+  }
+  
   function roiHit(mx,my){ const pts=rois[roiSelect.value]; for(let i=0;i<pts.length;i++){ const dx=mx-pts[i][0], dy=my-pts[i][1]; if(dx*dx+dy*dy<=25) return i; } return -1; }
   let roiDrag=-1;
-  roiCanvas.addEventListener('pointerdown', e=>{ const r=roiCanvas.getBoundingClientRect(); const mx=(e.clientX-r.left)*(roiCanvas.width/r.width); const my=(e.clientY-r.top)*(roiCanvas.height/r.height); const i=roiHit(mx,my); if(i>=0){ roiDrag=i; return; } rois[roiSelect.value].push([Math.round(mx),Math.round(my)]); drawRois(); });
-  roiCanvas.addEventListener('pointermove', e=>{ if(roiDrag<0) return; const r=roiCanvas.getBoundingClientRect(); const mx=(e.clientX-r.left)*(roiCanvas.width/r.width); const my=(e.clientY-r.top)*(roiCanvas.height/r.height); rois[roiSelect.value][roiDrag]=[ Math.max(0,Math.min(roiCanvas.width,Math.round(mx))), Math.max(0,Math.min(roiCanvas.height,Math.round(my))) ]; drawRois(); });
-  roiCanvas.addEventListener('pointerup', ()=>roiDrag=-1); roiCanvas.addEventListener('pointerleave', ()=>roiDrag=-1);
+  
+  if (roiCanvas) {
+    roiCanvas.addEventListener('pointerdown', e=>{ const r=roiCanvas.getBoundingClientRect(); const mx=(e.clientX-r.left)*(roiCanvas.width/r.width); const my=(e.clientY-r.top)*(roiCanvas.height/r.height); const i=roiHit(mx,my); if(i>=0){ roiDrag=i; return; } rois[roiSelect.value].push([Math.round(mx),Math.round(my)]); drawRois(); });
+    roiCanvas.addEventListener('pointermove', e=>{ if(roiDrag<0) return; const r=roiCanvas.getBoundingClientRect(); const mx=(e.clientX-r.left)*(roiCanvas.width/r.width); const my=(e.clientY-r.top)*(roiCanvas.height/r.height); rois[roiSelect.value][roiDrag]=[ Math.max(0,Math.min(roiCanvas.width,Math.round(mx))), Math.max(0,Math.min(roiCanvas.height,Math.round(my))) ]; drawRois(); });
+    roiCanvas.addEventListener('pointerup', ()=>roiDrag=-1); 
+    roiCanvas.addEventListener('pointerleave', ()=>roiDrag=-1);
+    roiCanvas.width=CAN.width; roiCanvas.height=CAN.height; 
+  }
+  
   document.addEventListener('keydown', e=>{ if(e.key==='Backspace'||e.key==='Delete'){ const arr=rois[roiSelect.value]; if(arr.length>0){ arr.pop(); drawRois(); } } });
-  roiClear.onclick=()=>{ rois[roiSelect.value]=[]; drawRois(); };
-  function showQuad(){ tabQuad.classList.add('active'); tabRoi.classList.remove('active'); tabLive.classList.remove('active'); paneQuad.style.display='block'; roiPane.style.display='none'; livePane.style.display='none'; }
-  function showRoi(){ tabRoi.classList.add('active'); tabQuad.classList.remove('active'); tabLive.classList.remove('active'); paneQuad.style.display='none'; roiPane.style.display='block'; livePane.style.display='none'; drawRois(); }
-  function showLive(){ tabLive.classList.add('active'); tabQuad.classList.remove('active'); tabRoi.classList.remove('active'); paneQuad.style.display='none'; roiPane.style.display='none'; livePane.style.display='block'; }
-  tabQuad.onclick=showQuad; tabRoi.onclick=showRoi; tabLive.onclick=showLive;
+  if (roiClear) roiClear.onclick=()=>{ rois[roiSelect.value]=[]; drawRois(); };
+  
+  // Tab switching functions with debug logging
+  function showQuad(){ 
+    console.log('Switching to Quad tab');
+    tabQuad.classList.add('active'); 
+    tabRoi.classList.remove('active'); 
+    tabLive.classList.remove('active'); 
+    paneQuad.style.display='block'; 
+    roiPane.style.display='none'; 
+    livePane.style.display='none'; 
+  }
+  
+  function showRoi(){ 
+    console.log('Switching to ROI tab');
+    tabRoi.classList.add('active'); 
+    tabQuad.classList.remove('active'); 
+    tabLive.classList.remove('active'); 
+    paneQuad.style.display='none'; 
+    roiPane.style.display='block'; 
+    livePane.style.display='none'; 
+    drawRois(); 
+  }
+  
+  function showLive(){ 
+    console.log('Switching to Live Feed tab');
+    tabLive.classList.add('active'); 
+    tabQuad.classList.remove('active'); 
+    tabRoi.classList.remove('active'); 
+    paneQuad.style.display='none'; 
+    roiPane.style.display='none'; 
+    livePane.style.display='block'; 
+  }
+  
+  // Set up tab event handlers with error checking
+  if (tabQuad) tabQuad.onclick = showQuad;
+  if (tabRoi) tabRoi.onclick = showRoi; 
+  if (tabLive) {
+    tabLive.onclick = showLive;
+    console.log('Live Feed tab handler attached');
+  } else {
+    console.error('tabLive element not found!');
+  }
 
-  snapBtn.onclick=async()=>{ if(!feed.videoWidth||!feed.videoHeight||!quad) return; const tmp=document.createElement('canvas'); tmp.width=feed.videoWidth; tmp.height=feed.videoHeight; tmp.getContext('2d').drawImage(feed,0,0); const dataUrl=tmp.toDataURL('image/png'); const oq=orderedQuad(quad); const body={ canonical:{width:CAN.width,height:CAN.height}, quad:oq.map(p=>({x:p.x,y:p.y})), imageBase64:dataUrl }; const res=await fetch('/api/calibrate/warp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); if(!res.ok){ roiMsg.textContent='Warp failed'; setTimeout(()=>roiMsg.textContent='',2000); return; } const blob=await res.blob(); roiBg=await createImageBitmap(blob); drawRois(); };
+  if (snapBtn) snapBtn.onclick=async()=>{ if(!feed.videoWidth||!feed.videoHeight||!quad) return; const tmp=document.createElement('canvas'); tmp.width=feed.videoWidth; tmp.height=feed.videoHeight; tmp.getContext('2d').drawImage(feed,0,0); const dataUrl=tmp.toDataURL('image/png'); const oq=orderedQuad(quad); const body={ canonical:{width:CAN.width,height:CAN.height}, quad:oq.map(p=>({x:p.x,y:p.y})), imageBase64:dataUrl }; const res=await fetch('/api/calibrate/warp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); if(!res.ok){ roiMsg.textContent='Warp failed'; setTimeout(()=>roiMsg.textContent='',2000); return; } const blob=await res.blob(); roiBg=await createImageBitmap(blob); drawRois(); };
 
-  saveGame.onclick=async()=>{ const body={ id:gameId.value.trim()||'generic-pin', name:gameName.value.trim()||'Generic Pin', canonical:{width:CAN.width,height:CAN.height}, rois }; const res=await fetch('/api/profiles/game',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); roiMsg.textContent=res.ok?'Saved ?':'Save failed'; setTimeout(()=>roiMsg.textContent='',2000); };
-  activate.onclick=async()=>{ const body={ cameraId: (camId?.value||'scene-1'), gameId: gameId.value.trim()||'generic-pin' }; const res=await fetch('/api/profiles/activate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); roiMsg.textContent=res.ok?'Activated ?':'Activate failed'; setTimeout(()=>roiMsg.textContent='',2000); };
+  if (saveGame) saveGame.onclick=async()=>{ const body={ id:gameId.value.trim()||'generic-pin', name:gameName.value.trim()||'Generic Pin', canonical:{width:CAN.width,height:CAN.height}, rois }; const res=await fetch('/api/profiles/game',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); roiMsg.textContent=res.ok?'Saved ?':'Save failed'; setTimeout(()=>roiMsg.textContent='',2000); };
+  if (activate) activate.onclick=async()=>{ const body={ cameraId: (camId?.value||'scene-1'), gameId: gameId.value.trim()||'generic-pin' }; const res=await fetch('/api/profiles/activate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); roiMsg.textContent=res.ok?'Activated ?':'Activate failed'; setTimeout(()=>roiMsg.textContent='',2000); };
 
-  roiCanvas.width=CAN.width; roiCanvas.height=CAN.height; drawRois();
+  drawRois();
 
   // kick off
-  (async function init(){ await loadVideoSettings(); await listCameras().catch(()=>{}); mode.value='camera'; mode.onchange(); drawOverlay(); })();
+  (async function init(){ 
+    await loadVideoSettings(); 
+    await listCameras().catch(()=>{}); 
+    mode.value='camera'; 
+    mode.onchange(); 
+    drawOverlay(); 
+    console.log('Calibration interface initialized');
+  })();
 });
