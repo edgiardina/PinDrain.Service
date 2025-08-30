@@ -1,0 +1,369 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>PinDrain Dashboard</title>
+  <style>
+    :root { 
+      --bg:#0a0a0a; --fg:#eee; --accent:#1e88e5; --muted:#263238; --border:#3a3a3a;
+      --primary-blue: #00d4ff;
+      --primary-purple: #8b5cf6;
+      --accent-yellow: #fbbf24;
+      --bg-dark: #0f0f0f;
+      --bg-panel: rgba(15, 15, 15, 0.95);
+      --bg-card: rgba(30, 30, 40, 0.9);
+      --text-primary: #ffffff;
+      --text-secondary: #a3a3a3;
+      --border-glow: rgba(0, 212, 255, 0.3);
+      --shadow-strong: 0 8px 32px rgba(0, 0, 0, 0.8);
+      --shadow-glow: 0 0 20px rgba(0, 212, 255, 0.4);
+    }
+    html,body { height:100%; margin:0; background:var(--bg); color:var(--fg); font-family: 'Segoe UI', system-ui, sans-serif; }
+    
+    /* Header */
+    #header {
+      background: var(--bg-panel);
+      border-bottom: 2px solid var(--primary-blue);
+      box-shadow: var(--shadow-strong);
+      backdrop-filter: blur(12px);
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    
+    #main-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    #main-brand-logo {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: white;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+    
+    #main-brand-text {
+      font-size: 32px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: 0.5px;
+    }
+    
+    #header-actions {
+      margin-left: auto;
+      display: flex;
+      gap: 12px;
+    }
+    
+    .header-btn {
+      background: var(--accent);
+      color: white;
+      border: 0;
+      padding: 12px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    
+    .header-btn:hover {
+      background: #1976d2;
+      transform: translateY(-1px);
+    }
+    
+    .header-btn.danger {
+      background: #dc3545;
+    }
+    
+    .header-btn.danger:hover {
+      background: #c82333;
+    }
+
+    /* Tabs */
+    #tabs { 
+      position:sticky; top:0; z-index:5; display:flex; gap:8px; padding:12px 20px; 
+      background:rgba(17,17,17,.95); backdrop-filter: blur(4px); border-bottom:1px solid var(--border); 
+    }
+    #tabs button { 
+      background:var(--muted); color:var(--fg); border:1px solid var(--border); border-radius:8px; 
+      padding:10px 16px; cursor:pointer; font-weight:500; transition: all 0.2s;
+    }
+    #tabs button.active { background:var(--accent); border-color:var(--accent); }
+    #tabs button:hover:not(.active) { background: #374151; }
+    
+    /* Shared Styles */
+    .toolbar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; padding:16px 20px; background: var(--bg-card); margin: 16px 20px; border-radius: 12px; border: 1px solid var(--border); }
+    .toolbar label { display:flex; gap:8px; align-items:center; font-weight: 500; }
+    .toolbar input, .toolbar select { padding:8px 12px; border-radius:8px; border:1px solid #444; background:#222; color:var(--fg); }
+    .toolbar button { background:var(--accent); color:white; border:0; padding:10px 16px; border-radius:8px; cursor:pointer; font-weight: 600; }
+    .toolbar button:hover { background: #1976d2; }
+    
+    /* Content Panes */
+    .content-pane { display: none; padding: 0 20px 20px; }
+    .content-pane.active { display: block; }
+    
+    #paneQuad { display:block; }
+    #stage { position: relative; display:inline-block; margin: 16px 0; }
+    #feed, #cal { position:absolute; top:0; left:0; }
+    #feed { background:#000; border-radius: 8px; }
+    #cal { border-radius: 8px; }
+    
+    #roiPane { display:none; }
+    #roiWrap { padding:20px; }
+    #roiCanvas { width: 400px; height: 800px; background:#000; border:1px solid #333; border-radius: 8px; display:block; }
+    #roiMsg { margin-left:8px; opacity:.85; }
+    #screenHint { color:#b0bec5; font-size:.9em; }
+    #serverSrc { border-top:1px solid var(--border); margin: 16px 0; padding:16px 0; }
+    #serverSrc .group { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:0 0 12px; }
+    #serverSrc small { opacity:.8; }
+    
+    #livePane { display:none; }
+    #liveStream { width: 100%; max-width: 600px; height: auto; border:1px solid #333; background:#000; border-radius: 8px; }
+    #liveWrap { padding: 20px; text-align: center; }
+    
+    /* URLs Panel */
+    #urlsPane { display: none; }
+    .url-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; padding: 20px; }
+    .url-card { 
+      background: var(--bg-card); 
+      border: 1px solid var(--border); 
+      border-radius: 12px; 
+      padding: 20px; 
+      transition: all 0.2s;
+    }
+    .url-card:hover { 
+      border-color: var(--primary-blue); 
+      box-shadow: 0 4px 16px rgba(0, 212, 255, 0.2); 
+    }
+    .url-card h3 { 
+      margin: 0 0 8px; 
+      color: var(--primary-blue); 
+      font-size: 18px; 
+    }
+    .url-card p { 
+      margin: 0 0 12px; 
+      color: var(--text-secondary); 
+      font-size: 14px; 
+    }
+    .url-card a { 
+      color: var(--primary-blue); 
+      text-decoration: none; 
+      font-family: 'Courier New', monospace; 
+      background: rgba(0, 212, 255, 0.1); 
+      padding: 4px 8px; 
+      border-radius: 4px; 
+      font-size: 13px;
+    }
+    .url-card a:hover { 
+      background: rgba(0, 212, 255, 0.2); 
+    }
+    
+    /* Status Panel */
+    #statusPane { display: none; }
+    .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; padding: 20px; }
+    .status-card { 
+      background: var(--bg-card); 
+      border: 1px solid var(--border); 
+      border-radius: 12px; 
+      padding: 20px; 
+    }
+    .status-card h3 { 
+      margin: 0 0 12px; 
+      color: var(--text-primary); 
+      font-size: 16px; 
+    }
+    .status-value { 
+      font-size: 24px; 
+      font-weight: 700; 
+      color: var(--primary-blue); 
+      margin-bottom: 4px; 
+    }
+    .status-label { 
+      font-size: 12px; 
+      color: var(--text-secondary); 
+      text-transform: uppercase; 
+      letter-spacing: 0.5px; 
+    }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <div id="main-brand">
+      <div id="main-brand-logo">?</div>
+      <div id="main-brand-text">PinDrain</div>
+    </div>
+    <div id="header-actions">
+      <button class="header-btn danger" id="resetBtn">Reset Drain Counts</button>
+    </div>
+  </div>
+
+  <div id="tabs">
+    <button id="tabQuad" class="active">Camera Setup</button>
+    <button id="tabRoi">ROI Config</button>
+    <button id="tabLive">Live Feed</button>
+    <button id="tabUrls">API URLs</button>
+    <button id="tabStatus">System Status</button>
+  </div>
+
+  <div id="paneQuad" class="content-pane active">
+    <div class="toolbar">
+      <label>Preview Mode
+        <select id="mode">
+          <option value="camera">Camera</option>
+          <option value="screen">Screen/Window</option>
+          <option value="none">None</option>
+        </select>
+      </label>
+
+      <label id="camWrap">Device
+        <select id="device"></select>
+      </label>
+
+      <button id="pickBtn" hidden>Pick Window/Tab</button>
+      <span id="screenHint" hidden>Browser will show a picker to select a screen/window/tab.</span>
+
+      <input id="camId" placeholder="Camera ID" value="scene-1">
+      <input id="camName" placeholder="Name" value="DeskCam">
+      <label><input type="checkbox" id="lockRect"> Keep rectangle on resize</label>
+      <button id="saveBtn">Save Camera Quad</button>
+      <span id="msg"></span>
+    </div>
+
+    <div class="toolbar">
+      <strong>Detector Source (Server)</strong>
+      <label>Mode
+        <select id="vidModeSel">
+          <option value="device">Device</option>
+          <option value="file">File</option>
+          <option value="url">URL</option>
+        </select>
+      </label>
+      <label id="vidDevWrap">Device ID <input id="vidDeviceId" type="number" min="0" step="1" style="width:90px"/></label>
+      <label id="vidFileWrap" hidden>File Path <input id="vidFilePath" style="width:360px" placeholder="C:\\clips\\pinball.mp4"/></label>
+      <label id="vidUrlWrap" hidden>Stream URL <input id="vidStreamUrl" style="width:360px" placeholder="rtsp://... or http(s)://..."/></label>
+      <button id="vidSave">Save Video Settings</button>
+      <span id="vidMsg"></span>
+      <small style="opacity:0.7;">Note: Restart the app after saving video settings.</small>
+    </div>
+
+    <div id="stage">
+      <video id="feed" autoplay playsinline muted></video>
+      <canvas id="cal"></canvas>
+    </div>
+  </div>
+
+  <div id="roiPane" class="content-pane">
+    <div class="toolbar">
+      <button id="snapBtn">Warp Snapshot</button>
+      <select id="roiSelect">
+        <option value="leftOutlane">Left Outlane</option>
+        <option value="centerDrain">Center Drain</option>
+        <option value="rightOutlane">Right Outlane</option>
+      </select>
+      <button id="roiClear">Clear</button>
+      <input id="gameId" value="generic-pin" title="Game ID">
+      <input id="gameName" value="Generic Pin" title="Game Name">
+      <button id="saveGame">Save Game ROI</button>
+      <button id="activate">Activate</button>
+      <span id="roiMsg"></span>
+    </div>
+    <div id="roiWrap">
+      <canvas id="roiCanvas" width="1000" height="2000"></canvas>
+    </div>
+  </div>
+
+  <div id="livePane" class="content-pane">
+    <div id="liveWrap">
+      <h3>Live Detector Feed</h3>
+      <p>Real-time view of what the detector sees with ROI overlays and tracked objects.</p>
+      <img id="liveStream" src="/api/debug/stream" alt="Live detector feed" />
+      <p><small>Yellow dots = tracked objects, colored outlines = ROI boundaries</small></p>
+    </div>
+  </div>
+
+  <div id="urlsPane" class="content-pane">
+    <div class="url-grid">
+      <div class="url-card">
+        <h3>Overlay for OBS</h3>
+        <p>Browser source for streaming overlays</p>
+        <a href="/overlay/" target="_blank">http://localhost:5173/overlay/</a>
+      </div>
+      <div class="url-card">
+        <h3>Live Debug Stream</h3>
+        <p>MJPEG stream of detector processing</p>
+        <a href="/api/debug/stream" target="_blank">http://localhost:5173/api/debug/stream</a>
+      </div>
+      <div class="url-card">
+        <h3>Debug Frame</h3>
+        <p>Latest annotated frame as PNG</p>
+        <a href="/api/debug/frame" target="_blank">http://localhost:5173/api/debug/frame</a>
+      </div>
+      <div class="url-card">
+        <h3>System State</h3>
+        <p>Current detection statistics JSON</p>
+        <a href="/api/debug/state" target="_blank">http://localhost:5173/api/debug/state</a>
+      </div>
+      <div class="url-card">
+        <h3>Drain Statistics</h3>
+        <p>Session drain counts and percentages</p>
+        <a href="/api/stats" target="_blank">http://localhost:5173/api/stats</a>
+      </div>
+      <div class="url-card">
+        <h3>Video Settings</h3>
+        <p>Current detector video source config</p>
+        <a href="/api/settings/video" target="_blank">http://localhost:5173/api/settings/video</a>
+      </div>
+      <div class="url-card">
+        <h3>Available Devices</h3>
+        <p>Server-side camera device enumeration</p>
+        <a href="/api/settings/devices" target="_blank">http://localhost:5173/api/settings/devices</a>
+      </div>
+      <div class="url-card">
+        <h3>Profiles</h3>
+        <p>Camera and game profile management</p>
+        <a href="/api/profiles" target="_blank">http://localhost:5173/api/profiles</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="statusPane" class="content-pane">
+    <div class="status-grid">
+      <div class="status-card">
+        <h3>Detection Rate</h3>
+        <div class="status-value" id="statusFps">--</div>
+        <div class="status-label">Frames per second</div>
+      </div>
+      <div class="status-card">
+        <h3>Total Drains</h3>
+        <div class="status-value" id="statusDrains">--</div>
+        <div class="status-label">This session</div>
+      </div>
+      <div class="status-card">
+        <h3>Tracks</h3>
+        <div class="status-value" id="statusTracks">--</div>
+        <div class="status-label">Active objects</div>
+      </div>
+      <div class="status-card">
+        <h3>Processing</h3>
+        <div class="status-value" id="statusFrame">--</div>
+        <div class="status-label">Frame resolution</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>

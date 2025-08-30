@@ -21,6 +21,9 @@ builder.Services.AddHostedService<PinDrain.Service.Services.VideoProcessor>();
 var app = builder.Build();
 
 var overlayPath = Path.Combine(AppContext.BaseDirectory, "Overlay");
+var dashboardPath = Path.Combine(AppContext.BaseDirectory, "Dashboard");
+
+// Overlay static files (for OBS browser sources)
 app.UseDefaultFiles(new DefaultFilesOptions {
     FileProvider = new PhysicalFileProvider(overlayPath),
     RequestPath = "/overlay"
@@ -30,7 +33,17 @@ app.UseStaticFiles(new StaticFileOptions {
     RequestPath = "/overlay"
 });
 
-// friendly route without .html extension
+// Dashboard static files (management interface)
+app.UseDefaultFiles(new DefaultFilesOptions {
+    FileProvider = new PhysicalFileProvider(dashboardPath),
+    RequestPath = "/dashboard"
+});
+app.UseStaticFiles(new StaticFileOptions {
+    FileProvider = new PhysicalFileProvider(dashboardPath),
+    RequestPath = "/dashboard"
+});
+
+// friendly routes without .html extension
 app.MapGet("/overlay/calibrate", async ctx => {
     ctx.Response.ContentType = "text/html";
     await ctx.Response.SendFileAsync(Path.Combine(overlayPath, "calibrate.html"));
